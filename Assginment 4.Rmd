@@ -1,0 +1,114 @@
+---
+title: "HW4: Clustering and Non-compliance"
+author: "Xiao(Freeman)_Zhang"
+date: "2022-11-12"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r}
+#Preparation 
+library(readxl)
+library(knitr)
+library(dplyr)
+library(ggplot2)
+library(dplyr)
+library(psych)
+rm(list=ls())
+
+cluster <- read.csv("~/Desktop/UW - Madison/Fall 2022/GB 740/Week 5/Assignment 4/cluster.csv")
+head(cluster)
+```
+```{r}
+#Individual Mean in two different groups
+attach(cluster)
+sale_summary <- cluster %>%  
+  mutate(treatment = as.factor(treatment)) %>% 
+  group_by(treatment) %>%       
+  summarise(group_amount = length(customer_id),            
+            mean_sale = round(mean(sale),5),         
+            mean_sale_error = round(sd(sale)/sqrt(group_amount),4),  
+            lowerCI = round(mean_sale - 1.96*mean_sale_error,4),   
+            upperCI = round(mean_sale + 1.96*mean_sale_error,4))
+
+kable(sale_summary)  
+
+detach(cluster)
+
+```
+
+```{r}
+#ATE Individual
+cluster_ATE <-matrix(NA,ncol = 3, nrow = 2)  # create a matrix to store the results
+colnames(cluster_ATE) <- c("Treatment Effect converted", "Lower 95% CI", "Upper 95% CI" )
+rownames(cluster_ATE) <- c("Treatment: Picture","Control: No Picture")
+
+cluster_effect <-c(sale_summary$mean_sale[2]-sale_summary$mean_sale[1],
+                  sale_summary$mean_sale[1]) 
+
+cluster_error_rate <- c (sqrt(sale_summary$mean_sale_error[1]^2+sale_summary$mean_sale_error[2]^2),
+                        NA)
+# calculate the s.e. of ATE
+cluster_LCI <- cluster_effect-1.96*cluster_error_rate
+cluster_UCI <- cluster_effect+1.96*cluster_error_rate
+
+cluster_ATE[,1] <-round(cluster_effect,5)
+cluster_ATE[,2] <-round(cluster_LCI,4)
+cluster_ATE[,3] <-round(cluster_UCI,4)
+
+kable(cluster_ATE)
+```
+
+```{r}
+#New table for 200 stores
+attach(cluster)
+# Create a summary table
+cluster_store_summary = cluster %>%  
+  mutate(treatment = as.factor(treatment)) %>% 
+  mutate(store_id = as.factor(store_id))%>% 
+  group_by(store_id,treatment) %>% 
+  summarise(group_size = length(customer_id),    
+            store_mean_sale = round(mean(sale),5))
+kable(cluster_store_summary)
+detach(cluster)
+``` 
+```{r}
+#Group Mean in two different groups
+attach(cluster_store_summary)
+store_sale_summary <- cluster_store_summary %>%  
+  mutate(treatment = as.factor(treatment)) %>% 
+  group_by(treatment) %>%       
+  summarise(store_amount = length(store_id),            
+            mean_store_sale = round(mean(store_mean_sale),5),         
+            mean_store_sale_error = round(sd(store_mean_sale)/sqrt(store_amount),4),  
+            lowerCI = round(mean_store_sale - 1.96*mean_store_sale_error,4),   
+            upperCI = round(mean_store_sale + 1.96*mean_store_sale_error,4))
+
+kable(store_sale_summary)  
+
+detach(cluster_store_summary)
+
+```
+```{r}
+#ATE Individual
+cluster_store_ATE <-matrix(NA,ncol = 3, nrow = 2)  # create a matrix to store the results
+colnames(cluster_store_ATE) <- c("Treatment Effect converted", "Lower 95% CI", "Upper 95% CI" )
+rownames(cluster_store_ATE) <- c("Treatment: Picture Stores","Control: No Picture Stores")
+
+cluster_store_effect <-c(store_sale_summary$mean_store_sale[2]-store_sale_summary$mean_store_sale[1],
+                   store_sale_summary$mean_store_sale[1]) 
+
+cluster_store_error_rate <- c (sqrt(store_sale_summary$mean_store_sale_error[1]^2+store_sale_summary$mean_store_sale_error[2]^2),
+                        NA)
+# calculate the s.e. of ATE
+cluster_store_LCI <- cluster_store_effect-1.96*cluster_store_error_rate
+cluster_store_UCI <- cluster_store_effect+1.96*cluster_store_error_rate
+
+cluster_store_ATE[,1] <-round(cluster_store_effect,5)
+cluster_store_ATE[,2] <-round(cluster_store_LCI,4)
+cluster_store_ATE[,3] <-round(cluster_store_UCI,4)
+
+kable(cluster_store_ATE)
+```
+

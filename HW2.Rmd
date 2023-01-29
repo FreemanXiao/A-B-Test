@@ -1,0 +1,310 @@
+---
+title: 'HW2: RocketFuel Case Question submission'
+author: "Xiao(Freeman)_Zhang"
+date: "2022-10-28"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r }
+#Preparation 
+library(readxl)
+library(knitr)
+library(dplyr)
+library(ggplot2)
+library(dplyr)
+library(psych)
+rm(list=ls())
+
+rocket <- read.csv("~/Desktop/UW - Madison/Fall 2022/GB 740/Week 3/Assignment 2/rocketfuel_deciles.csv")
+head(rocket)
+```
+```{r}
+#Q3
+# Summary the data
+summary(rocket)
+
+#Very small groups of people bought the product...Wow... there is someone see the ad for 2065 times...
+# there are lots of people see the ad from 11:00 to 18:00, these 5 hours contain 50% people. 
+```
+```{r}
+#Q4
+attach(rocket)
+
+tb_rocket_full <- matrix(NA, nrow = 2, ncol = 2) 
+tb_rocket_full[1,] <- format(table(test), 0) # counts in treatment. It will order the treatment from lowest to highest as it makes the table.
+# use format() to control the digits in report table
+tb_rocket_full[2,] <- format(prop.table(table(test)),digits = 3) # proportion in treatments
+
+rownames(tb_rocket_full) <- c("Frequency", "Proportion" ) # name the rows
+colnames(tb_rocket_full) <- c("PSA",  "Real ad")  # name the columns
+kable(tb_rocket_full) # make a table
+detach(rocket)
+
+#impressive.. there are 4 percent of people in the contriol group like the essay said. 
+#96% people in the treatment group, who saw the real ad. 
+```
+```{r}
+#Q5
+attach(rocket)
+# Create a summary table
+summary = rocket %>%  #create a table called summary that will hold the info that starts with the data set
+  mutate(test = as.factor(test)) %>%        #and then tell R that treatment is a factor variable taking discrete levels.
+  group_by(test) %>%        # and then create groups by treatment
+  summarise(n = length(user_id),            # create a new table with summary measures
+            mean.impressions = round(mean(tot_impr),2),
+            sd.impressions = round(sd(tot_impr),2))
+kable(summary)
+detach(rocket)
+
+# because week and hours are factor variable, it does not make sense to have mean and sd for them
+# We will show the balance of days and hours in graph
+
+```
+```{r}
+#Q5
+attach(rocket)
+par(mfrow=c(2,3)) 
+
+
+hist(tot_impr[test==0], main = paste("Control Group PSA"), xlab = "Impression")
+hist(mode_impr_day[test==0], main = paste("Control Group PSA"), xlab = "Days") 
+hist(mode_impr_hour[test==0], main = paste("Control Group PSA"), xlab = "Hours")
+
+
+hist(tot_impr[test==1], main = paste("Treatment Group AD"), xlab = "Impression") 
+hist(mode_impr_day[test==1], main = paste("Treatment Group AD"), xlab = "Days") 
+hist(mode_impr_hour[test==1], main = paste("Treatment Group AD"), xlab = "Hours")
+
+detach(rocket)
+# as well can see, for both days and hours. two groups have similar balances, from 10am to 8pm, both
+# groups has the majority if the views. The days are very balance for each days actually. 
+```
+```{r}
+#Q6
+attach(rocket)
+converted_summary <- rocket %>%  
+  mutate(test = as.factor(test)) %>% 
+  group_by(test) %>%       
+  summarise(group_amount = length(user_id),            
+            converted_rate = round(mean(converted),4),         
+            converted_error = round(sd(converted)/sqrt(group_amount),4),  
+            lowerCI = round(converted_rate - 1.96*converted_error,4),   
+            upperCI = round(converted_rate + 1.96*converted_error,4))
+
+kable(converted_summary)  
+
+detach(rocket)
+
+```
+```{r}
+#Q6
+attach(rocket)
+converted_summary %>%
+  ggplot(aes(x=test)) +
+  geom_point(aes(y = converted_rate), size = 3) +
+  scale_shape_manual(values=c(15, 16)) +
+  ggtitle("Average Converted by Group") +
+  ylab("converted Mean") + xlab("Groups") +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(),axis.line = element_line(colour = "black"), 
+        axis.text.x= element_text(size = 10), legend.position=c(.5,.5),
+        plot.title=element_text(hjust=.5))+
+  geom_errorbar(aes(ymin = lowerCI,
+                    ymax = upperCI), width = .1)+
+  scale_color_manual(values=c("darkgrey","black"))
+detach(rocket)
+
+#the calculation of the black point is account of 1: converted devided by the whole group of number
+# In another word, it's the purchase rate! For the control group, we have a mean of 0.018 which means
+# the converted rate is 1.8%, the interval is from 0.016 to 0.02, which means that there are 95% confidence that the convert rate for control group is between 1.6% to 2%. 
+# The convert rate for treatment group is 2.6%, because of the huge amount of test people, the standard error is almost 0 and the interval is almost 2.6% to 2.6%, which we can say that with 95% confidence, the convert rate is about 95%
+```
+``` {r}
+#Q7
+rocket_ATE <-matrix(NA,ncol = 3, nrow = 2)  # create a matrix to store the results
+colnames(rocket_ATE) <- c("Treatment Effect converted", "Lower 95% CI", "Upper 95% CI" )
+rownames(rocket_ATE) <- c("Treatment: ADs","Control Mean:PSA")
+
+rocket_effect <-c(converted_summary$converted_rate[2]-converted_summary$converted_rate[1],
+                  converted_summary$converted_rate[1]) 
+
+rocket_error_rate <- c (sqrt(converted_summary$converted_error[1]^2+converted_summary$converted_error[2]^2),
+                        NA)
+# calculate the s.e. of ATE
+rocket_LCI <- rocket_effect-1.96*rocket_error_rate
+rocket_UCI <- rocket_effect+1.96*rocket_error_rate
+
+rocket_ATE[,1] <-round(rocket_effect,4)
+rocket_ATE[,2] <-round(rocket_LCI,4)
+rocket_ATE[,3] <-round(rocket_UCI,4)
+
+kable(rocket_ATE)
+
+```
+```{r}
+#Q8
+rocket$treat1 <- as.numeric(rocket$test == 1)
+library("lmtest")
+library("sandwich")
+```
+
+
+```{r}
+#Q8
+fit.converted <- lm(converted~treat1, data = rocket)
+coeftest(fit.converted, vcov = vcovHC(fit.converted, type = "HC3"))  
+``` 
+```{r}
+#Q8
+coefci(fit.converted, vcov = vcovHC(fit.converted))
+#more wide, compare to the Q7 result:0.0058 - 0.0094, 
+# we have0.0059 - 0.0094 after we use the regression approach, which is a little narrower than the original interval. 
+``` 
+
+```{r}
+#Q9
+attach(rocket)
+# Create a summary table
+summary = rocket %>%  
+  mutate(test = as.factor(test)) %>% 
+  mutate(tot_impr_decile = as.factor(tot_impr_decile))%>% 
+  group_by(test, tot_impr_decile) %>% 
+  summarise(group_size = length(user_id),    
+            mean.impressions = round(mean(tot_impr),3),
+            sd.impressions = round(sd(tot_impr),3),
+            converted_rate = round(mean(converted),3),
+            sd.converted_rate = round(sd(converted),3))
+kable(summary)
+detach(rocket)
+#Except the number, the mean impression and the impression sd are very similar across the control group and the treatment group. In this case, we can say that the variance in difference decile is similar and pretty balanced across different goups. 
+
+``` 
+
+
+```{r}
+#Q10
+attach(rocket)
+converted_summary_2 <- rocket %>%  
+  mutate(test = as.factor(test)) %>% 
+  mutate(tot_impr_decile = as.factor(tot_impr_decile))%>% 
+  group_by(test, tot_impr_decile) %>% 
+  summarise(group_amount = length(user_id),            
+            converted_rate = round(mean(converted),3),         
+            converted_error = round(sd(converted)/sqrt(group_amount),4),  
+            lowerCI = round(converted_rate - 1.96*converted_error,3),   
+            upperCI = round(converted_rate + 1.96*converted_error,3))
+
+kable(converted_summary_2)  
+
+detach(rocket)
+
+```
+
+
+
+```{r}
+#Q10
+attach(rocket)
+converted_summary_2 %>%
+  ggplot(aes(x=tot_impr_decile)) +
+  geom_point(aes(y = converted_rate, color = test), size = 3) +
+  scale_shape_manual(values=c(15, 16)) +
+  ggtitle("Average Converted by Group & Deciles") +
+  ylab("converted Mean") + xlab("Deciles Groups") + 
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(),axis.line = element_line(colour = "black"), 
+        axis.text.x= element_text(size = 10), legend.position=c(.5,.5),
+        plot.title=element_text(hjust=.5))+
+  geom_errorbar(aes(ymin = lowerCI,
+                    ymax = upperCI, color = test), width = .1) +
+  scale_shape_discrete(name = "Test Group")+ 
+  scale_color_discrete(name = "Test Group")
+
+scale_color_manual(values=c("darkgrey","black"))
+detach(rocket)
+ 
+#From the Graph, we can see that from 0% to 80% impressions, there is no big difference of the convert rate bwtween the treatment group and control group. However, there is a big difference between the two groups in 9th and 10th deciles which is 80%-90% impresions amount and 90%-100% impression amount. Also, because of the huge number of people in the treatment group, which cause the very small standard error, the interval of reatment in each deciles groups are much smaller than the control group, which only have 4% of the total sample. 
+```
+
+```{r}
+#Q11
+attach(rocket)
+rocket_ATE_Detile <-matrix(NA,ncol = 4, nrow = 10)  # create a matrix to store the results
+colnames(rocket_ATE_Detile) <- c("detile","treatment_effect_converted", "Lower_CI", "Upper_CI" )
+
+rocket_effect_Detile <-c(converted_summary_2$converted_rate[11]-converted_summary_2$converted_rate[1],
+                         converted_summary_2$converted_rate[12]-converted_summary_2$converted_rate[2],
+                         converted_summary_2$converted_rate[13]-converted_summary_2$converted_rate[3],
+                         converted_summary_2$converted_rate[14]-converted_summary_2$converted_rate[4],
+                         converted_summary_2$converted_rate[15]-converted_summary_2$converted_rate[5],
+                         converted_summary_2$converted_rate[16]-converted_summary_2$converted_rate[6],
+                         converted_summary_2$converted_rate[17]-converted_summary_2$converted_rate[7],
+                         converted_summary_2$converted_rate[18]-converted_summary_2$converted_rate[8],
+                         converted_summary_2$converted_rate[19]-converted_summary_2$converted_rate[9],
+                         converted_summary_2$converted_rate[20]-converted_summary_2$converted_rate[10]) 
+
+rocket_error_rate_Detile <- c(
+  sqrt(converted_summary_2$converted_error[11]^2+converted_summary_2$converted_error[1]^2),
+  sqrt(converted_summary_2$converted_error[12]^2+converted_summary_2$converted_error[2]^2),
+  sqrt(converted_summary_2$converted_error[13]^2+converted_summary_2$converted_error[3]^2),
+  sqrt(converted_summary_2$converted_error[14]^2+converted_summary_2$converted_error[4]^2),
+  sqrt(converted_summary_2$converted_error[15]^2+converted_summary_2$converted_error[5]^2),
+  sqrt(converted_summary_2$converted_error[16]^2+converted_summary_2$converted_error[6]^2),
+  sqrt(converted_summary_2$converted_error[17]^2+converted_summary_2$converted_error[7]^2),
+  sqrt(converted_summary_2$converted_error[18]^2+converted_summary_2$converted_error[8]^2),
+  sqrt(converted_summary_2$converted_error[19]^2+converted_summary_2$converted_error[9]^2),
+  sqrt(converted_summary_2$converted_error[20]^2+converted_summary_2$converted_error[10]^2))
+
+# calculate the s.e. of ATE
+rocket_LCI_Decile <- rocket_effect_Detile-1.96*rocket_error_rate_Detile
+rocket_UCI_Decile <- rocket_effect_Detile+1.96*rocket_error_rate_Detile
+
+rocket_ATE_Detile[,1] <-c("ATE D1","ATE D2","ATE D3","ATE D4","ATE D5",
+                          "ATE D6","ATE D7","ATE D8","ATE D9","ATE D10")
+rocket_ATE_Detile[,2] <-round(rocket_effect_Detile,4)
+rocket_ATE_Detile[,3] <-round(rocket_LCI_Decile,4)
+rocket_ATE_Detile[,4] <-round(rocket_UCI_Decile,4)
+
+kable(rocket_ATE_Detile)
+detach(rocket)
+```
+```{r}
+#Q11 Change the type to dataframe and data type
+rocket_ATE_Detile_frame=as.data.frame(rocket_ATE_Detile)
+rocket_ATE_Detile_frame$treatment_effect_converted <- 
+              as.numeric(as.character(rocket_ATE_Detile_frame$treatment_effect_converted))
+
+rocket_ATE_Detile_frame$Lower_CI <- 
+              as.numeric(as.character(rocket_ATE_Detile_frame$Lower_CI))
+
+rocket_ATE_Detile_frame$Upper_CI <- 
+              as.numeric(as.character(rocket_ATE_Detile_frame$Upper_CI))
+
+kable(rocket_ATE_Detile_frame)
+
+```
+
+```{R}
+#Q11
+attach(rocket)
+
+# Plot the average pageviews along with 95% CI from that summary table
+rocket_ATE_Detile_frame %>%
+  ggplot(aes(x=detile)) +
+  geom_point(aes(y = treatment_effect_converted), size = 3) +
+  scale_shape_manual(values=c(15, 16)) +
+  ggtitle("Converted ATE by Detile") +
+  ylab("Converted ATE") + xlab("Detile Group") +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(),axis.line = element_line(colour = "black"), 
+        axis.text.x= element_text(size = 10), legend.position=c(.5,.5),
+        plot.title=element_text(hjust=.5))+
+  geom_errorbar(aes(ymin = Lower_CI,
+                    ymax = Upper_CI), width = .1)+
+  scale_color_manual(values=c("darkgrey","black"))+
+  scale_x_discrete(limit = c("ATE D1","ATE D2","ATE D3","ATE D4","ATE D5",
+                          "ATE D6","ATE D7","ATE D8","ATE D9","ATE D10"))
+detach(rocket)
+```
